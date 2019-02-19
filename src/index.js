@@ -117,7 +117,7 @@ const getRatings = async (existingRatings = {}) => {
         ratings: updateRatings(ratings, matchResult),
       };
     },
-    { results: [], existingRatings }
+    { results: [], ratings: existingRatings }
   );
 
   const predictions = results.reduce(
