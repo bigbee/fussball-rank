@@ -82,9 +82,9 @@ const ratingsToString = ratings => {
   return Object.keys(ratings)
     .reduce((seed, key) => {
       const rating = ratings[key];
-      const ratingString = `${Math.round(rating.mu * 100)} +- ${Math.round(
-        rating.sigma * 100
-      )}`;
+      const displayRating = Math.round(rating.mu * 100);
+      const displayUncertaintyPercent = Math.round((rating.sigma / rating.mu) * 100);
+      const ratingString = `${displayRating} +-${ displayUncertaintyPercent }%`;
       return [...seed, { name: key, rating: ratingString, mu: rating.mu }];
     }, [])
     .sort(({ mu: a }, { mu: b }) => b - a);
@@ -137,6 +137,18 @@ const getRatings = async (existingRatings = {}) => {
     { correct: 0, wrong: 0 }
   );
 
+  results.slice(-3).forEach(r => {
+    const [t1Score, t2Score] = getTeamScores(r.teams);
+    const [t1Names, t2Names] = r.teams.map(t =>
+      t.ratings.map(r => r.name).join(' & ')
+    );
+    console.log(
+`${t1Names} (${t1Score}) vs (${t2Score}) ${t2Names}
+  - Match quality: ${ r.quality }
+`
+    );
+  });
+
   console.log(`
 *** Leaderboard ***
 ${ratingsToString(ratings)
@@ -146,7 +158,7 @@ ${ratingsToString(ratings)
 *** Win prediction rate***
 ${Math.round(
   (predictions.correct / (predictions.wrong + predictions.correct)) * 100
-)}% ${predictions.wrong} + ${predictions.correct}
+)}% ${predictions.wrong} wrong + ${predictions.correct} correct
 `);
 };
 
