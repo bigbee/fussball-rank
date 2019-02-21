@@ -82,12 +82,16 @@ const ratingsToString = ratings => {
   return Object.keys(ratings)
     .reduce((seed, key) => {
       const rating = ratings[key];
-      const displayRating = Math.round(rating.mu * 100);
-      const displayUncertaintyPercent = Math.round((rating.sigma / rating.mu) * 100);
-      const ratingString = `${displayRating} +-${ displayUncertaintyPercent }%`;
+      const displayRating = fromMu(rating.mu);
+      const displayUncertaintyPercent = fromMu(rating.sigma / rating.mu);
+      const ratingString = `${displayRating} +-${displayUncertaintyPercent}%`;
       return [...seed, { name: key, rating: ratingString, mu: rating.mu }];
     }, [])
     .sort(({ mu: a }, { mu: b }) => b - a);
+};
+
+const fromMu = mu => {
+  return Math.round(mu * 100);
 };
 
 const matchResultToString = matchResult => {
@@ -143,9 +147,16 @@ const getRatings = async (existingRatings = {}) => {
       t.ratings.map(r => r.name).join(' & ')
     );
     console.log(
-`${t1Names} (${t1Score}) vs (${t2Score}) ${t2Names}
-  - Estimated win chance: ${ r.teams[0].winChance }%
-  - Match quality: ${ r.quality }
+      `${t1Names} (${t1Score}) vs (${t2Score}) ${t2Names}
+  - Estimated win chance: ${r.teams[0].winChance}%
+  - Match quality: ${r.quality}
+  - Rating changes:
+${r.teams.map(team => {
+        return team.ratings.map(
+          ({ name, rating: [fromRating, toRating] }) =>
+`      ${name}: Δ=${fromMu(toRating.mu - fromRating.mu)}`
+        ).join('\n');
+      }).join('\n')}
 `
     );
   });
