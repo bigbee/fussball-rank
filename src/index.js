@@ -144,6 +144,7 @@ const getRatings = async (existingRatings = {}) => {
     );
     console.log(
 `${t1Names} (${t1Score}) vs (${t2Score}) ${t2Names}
+  - Estimated win chance: ${ r.teams[0].winChance }%
   - Match quality: ${ r.quality }
 `
     );
