@@ -3,9 +3,16 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "zip-lambdas": "cd lambdas/ && bestzip ../fussball-lambda.zip ./*"
+  },
   "dependencies": {
     "google-spreadsheet": "^2.0.7",
     "promisify": "^0.0.3",
-    "ts-trueskill": "^2.3.0"
+    "ts-trueskill": "^2.3.0",
+    "fussball-lambda": "file:./lambdas/"
+  },
+  "devDependencies": {
+    "bestzip": "^2.1.2"
   }
 }

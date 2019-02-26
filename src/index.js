@@ -1,81 +1,8 @@
-const { rate, Rating, quality, winProbability } = require('ts-trueskill');
+const { getMatches } = require('fussball-lambda/matchAPI');
+const { getRatings } = require('fussball-lambda/ratingsAPI');
 
-const { getMatches } = require('./matchAPI');
-
-const updateRatings = (ratings, matchResults) => {
-  const updatedRatings = { ...ratings };
-  matchResults.teams.forEach(team => {
-    team.ratings.forEach(({ name, rating: [beforeRating, afterRating] }) => {
-      updatedRatings[name] = afterRating;
-    });
-  });
-  return updatedRatings;
-};
-
-const getTeamNames = ([{ names: team1Names }, { names: team2Names }]) => {
-  return [team1Names, team2Names];
-};
-const getTeamScores = ([{ score: team1Score }, { score: team2Score }]) => {
-  return [team1Score, team2Score];
-};
-
-const getWinProbability = (team1Ratings, team2Ratings) => {
-  return Math.round(winProbability(team1Ratings, team2Ratings) * 100);
-};
-const getWinProbabilities = (team1Ratings, team2Ratings) => {
-  return [
-    getWinProbability(team1Ratings, team2Ratings),
-    getWinProbability(team2Ratings, team1Ratings),
-  ];
-};
-
-const getResults = (match, ratings) => {
-  const [winnerScore, looserScore] = getTeamScores(match);
-  const [winnerTeam, looserTeam] = getTeamNames(match);
-
-  const [winnerRatings, looserRatings] = [
-    winnerTeam.map(name => ratings[name] || new Rating()),
-    looserTeam.map(name => ratings[name] || new Rating()),
-  ];
-  const [winnerProbability, looserProbability] = getWinProbabilities(
-    winnerRatings,
-    looserRatings
-  );
-
-  const matchQuality = quality([winnerRatings, looserRatings]);
-
-  // this is probably where we could take score into account
-  const winnerWeight = 1;
-  const looserWeight = 1;
-
-  const [newWinnerRatings, newLooserRatings] = rate(
-    [winnerRatings, looserRatings],
-    [0, 1],
-    [[winnerWeight, winnerWeight], [looserWeight, looserWeight]]
-  );
-
-  return {
-    match,
-    quality: matchQuality,
-    teams: [
-      {
-        winChance: winnerProbability,
-        score: winnerScore,
-        ratings: winnerTeam.map((name, i) => ({
-          name,
-          rating: [winnerRatings[i], newWinnerRatings[i]],
-        })),
-      },
-      {
-        winChance: looserProbability,
-        score: looserScore,
-        ratings: looserTeam.map((name, i) => ({
-          name,
-          rating: [looserRatings[i], newLooserRatings[i]],
-        })),
-      },
-    ],
-  };
+const fromMu = mu => {
+  return Math.round(mu * 100);
 };
 
 const ratingsToString = ratings => {
@@ -83,66 +10,27 @@ const ratingsToString = ratings => {
     .reduce((seed, key) => {
       const rating = ratings[key];
       const displayRating = fromMu(rating.mu);
-      const displayUncertaintyPercent = fromMu(rating.sigma / rating.mu);
-      const ratingString = `${displayRating} +-${displayUncertaintyPercent}%`;
-      return [...seed, { name: key, rating: ratingString, mu: rating.mu }];
+      const uncertaintyPercent = fromMu(rating.sigma / rating.mu);
+      const ratingString = `${displayRating} +-${uncertaintyPercent}%`;
+      return [
+        ...seed,
+        {
+          name: key,
+          rating: ratingString,
+          mu: rating.mu,
+          pessimisticMu: rating.mu - rating.sigma,
+        },
+      ];
     }, [])
-    .sort(({ mu: a }, { mu: b }) => b - a);
+    .sort(({ pessimisticMu: aMu }, { pessimisticMu: bMu }) => bMu - aMu);
 };
 
-const fromMu = mu => {
-  return Math.round(mu * 100);
-};
-
-const matchResultToString = matchResult => {
-  const winnerTeam = matchResult.teams[0];
-  const winnerNames = winnerTeam.ratings.map(rating => rating.name);
-  const looserTeam = matchResult.teams[1];
-  const looserNames = looserTeam.ratings.map(rating => rating.name);
-
-  return `
-  *** Match ***
-  Teams: ${winnerNames.join(' & ')} (${
-    winnerTeam.winChance
-  }% chance) vs ${looserNames.join(' & ')} (${looserTeam.winChance}% chance)
-  Quality: ${Math.round(matchResult.quality * 100)}%,
-  Prediction was: ${winnerTeam.winChance >= 50}
-`;
-};
-
-const getRatings = async (existingRatings = {}) => {
+const main = async () => {
   const matches = await getMatches();
-  // matches.forEach(updateRatings);
-  const { results, ratings } = matches.reduce(
-    ({ results, ratings }, match) => {
-      const matchResult = getResults(match, ratings);
-      return {
-        results: [...results, matchResult],
-        ratings: updateRatings(ratings, matchResult),
-      };
-    },
-    { results: [], ratings: existingRatings }
-  );
-
-  const predictions = results.reduce(
-    (seed, matchResult) => {
-      const winnerTeam = matchResult.teams[0];
-      const looserTeam = matchResult.teams[1];
-
-      if (winnerTeam.winChance >= 66) {
-        seed.correct = seed.correct + 1;
-      } else {
-        if (winnerTeam.winChance <= 33) {
-          seed.wrong = seed.wrong + 1;
-        }
-      }
-      return seed;
-    },
-    { correct: 0, wrong: 0 }
-  );
+  const { results, predictions, ratings } = await getRatings(matches);
 
   results.slice(-3).forEach(r => {
-    const [t1Score, t2Score] = getTeamScores(r.teams);
+    const [{ score: t1Score }, { score: t2Score }] = r.teams;
     const [t1Names, t2Names] = r.teams.map(t =>
       t.ratings.map(r => r.name).join(' & ')
     );
@@ -151,12 +39,16 @@ const getRatings = async (existingRatings = {}) => {
   - Estimated win chance: ${r.teams[0].winChance}%
   - Match quality: ${r.quality}
   - Rating changes:
-${r.teams.map(team => {
-        return team.ratings.map(
-          ({ name, rating: [fromRating, toRating] }) =>
-`      ${name}: Δ=${fromMu(toRating.mu - fromRating.mu)}`
-        ).join('\n');
-      }).join('\n')}
+${r.teams
+  .map(team => {
+    return team.ratings
+      .map(
+        ({ name, rating: [fromRating, toRating] }) =>
+          `      ${name}: Δ=${fromMu(toRating.mu - fromRating.mu)}`
+      )
+      .join('\n');
+  })
+  .join('\n')}
 `
     );
   });
@@ -174,4 +66,4 @@ ${Math.round(
 `);
 };
 
-getRatings();
+main();

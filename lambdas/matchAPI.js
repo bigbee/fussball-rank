@@ -49,7 +49,7 @@ const getRows = async sheet => {
   });
 };
 
-const getMatches = async key => {
+const getMatches = async () => {
   const doc = await getDoc(spreadsheetKey, credentials);
 
   const sheet = await getSheet(doc, 4);
@@ -70,4 +70,4 @@ const getMatches = async key => {
   );
 };
 
-module.exports = { getMatches };
+exports.getMatches = getMatches;

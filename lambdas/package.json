@@ -1,0 +1,11 @@
+{
+  "name": "fussball-lambda",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "google-spreadsheet": "^2.0.7",
+    "ts-trueskill": "^2.4.2"
+  },
+  "devDependencies": {}
+}

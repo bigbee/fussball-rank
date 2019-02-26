@@ -1,3 +1,6 @@
-node_modules
-*.log
-src/creds.json
+**/.DS_Store
+
+**/node_modules
+**/*.log
+fussball-lambda.zip
+**/creds.json
