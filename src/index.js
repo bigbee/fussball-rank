@@ -1,3 +1,5 @@
+const chalk = require('chalk');
+
 const { getMatches } = require('fussball-lambda/matchAPI');
 const { getRatings } = require('fussball-lambda/ratingsAPI');
 
@@ -25,19 +27,15 @@ const ratingsToString = ratings => {
     .sort(({ pessimisticMu: aMu }, { pessimisticMu: bMu }) => bMu - aMu);
 };
 
-const main = async () => {
-  const matches = await getMatches();
-  const { results, predictions, ratings } = await getRatings(matches);
+const resultsToString = r => {
+  const [{ score: t1Score }, { score: t2Score }] = r.teams;
+  const [t1Names, t2Names] = r.teams.map(t =>
+    t.ratings.map(r => r.name).join(' & ')
+  );
 
-  results.slice(-3).forEach(r => {
-    const [{ score: t1Score }, { score: t2Score }] = r.teams;
-    const [t1Names, t2Names] = r.teams.map(t =>
-      t.ratings.map(r => r.name).join(' & ')
-    );
-    console.log(
-      `${t1Names} (${t1Score}) vs (${t2Score}) ${t2Names}
+  return `${chalk.green(t1Names)} (${t1Score}) vs (${t2Score}) ${chalk.red(t2Names)}
   - Estimated win chance: ${r.teams[0].winChance}%
-  - Match quality: ${r.quality}
+  - Match quality: ${Math.round(r.quality * 100)}%
   - Rating changes:
 ${r.teams
   .map(team => {
@@ -49,17 +47,33 @@ ${r.teams
       .join('\n');
   })
   .join('\n')}
-`
-    );
+`;
+};
+
+const main = async () => {
+  const matches = await getMatches();
+  const { results, predictions, ratings } = await getRatings(matches);
+
+  const topUnexpectedMatch = [...results].sort((a, b) => {
+    return a.teams[0].winChance - b.teams[0].winChance;
+  })[0];
+  console.log(`
+${chalk.black.bgCyan('************************ Most unexpected win ************************')}
+${resultsToString(topUnexpectedMatch)}
+`);
+
+  console.log(chalk.black.bgCyan('************************ Last 3 matches ************************'));
+  results.slice(-3).forEach(r => {
+    console.log(resultsToString(r));
   });
 
   console.log(`
-*** Leaderboard ***
+${chalk.black.bgCyan('************************ Leaderboard ************************')}
 ${ratingsToString(ratings)
   .map((p, i) => `${i + 1}: ${p.name} (${p.rating})`)
   .join('\n')}
 
-*** Win prediction rate***
+${chalk.black.bgCyan('************************ Win prediction rate************************')}
 ${Math.round(
   (predictions.correct / (predictions.wrong + predictions.correct)) * 100
 )}% ${predictions.wrong} wrong + ${predictions.correct} correct
